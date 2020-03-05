@@ -1,0 +1,22 @@
+### PlatformIO ###
+.pioenvs
+.piolibdeps
+.clang_complete
+.gcc-flags.json
+.pio
+
+### Visual Studio Code Workspace ###
+*.code-workspace
+
+### FreeCAD backup files ###
+.fcstd1
+
+### Personal documentation - not for public release ###
+/doc_nogit
+
+# Workspace files are user-specific
+*.sublime-workspace
+
+
+# hide true credentials and config files from public git
+credentials.h

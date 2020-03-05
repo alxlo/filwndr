@@ -1,0 +1,49 @@
+// header file for arc42-template,
+// including all help texts
+//
+// ====================================
+:!figure-caption:
+= Automated Filament Winder
+// toc-title definition MUST follow document title without blank line!
+:toc-title: Inhaltsverzeichnis
+:author:    Alexander Lorz
+:email:     alexander.lorz@gmx.de
+:revdate:   18.01.2020
+:revnumber: 0.0.1
+
+//additional style for arc42 help callouts
+ifdef::basebackend-html[]
+++++
+<style>
+.arc42help {font-size:small; width: 14px; height: 16px; overflow: hidden; position: absolute; right: 0px; padding: 2px 0px 3px 2px;}
+.arc42help::before {content: "?";}
+.arc42help:hover {width:auto; height: auto; z-index: 100; padding: 10px;}
+.arc42help:hover::before {content: "";}
+@media print {
+	.arc42help {display:hidden;}
+}
+</style>
+++++
+endif::basebackend-html[]
+
+// configure DE settings for asciidoc
+include::src/config.adoc[]
+
+// numbering from here on
+:numbered:
+
+<<<<
+// Changelog
+include::src/00_changelog.adoc[]
+
+<<<<
+// 1. State Model
+include::src/01_state_model.adoc[]
+
+<<<<
+// 12. Glossar
+include::src/12_glossary.adoc[]
+
+<<<<
+// 13. Quellen
+include::src/13_references.adoc[]

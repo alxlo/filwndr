@@ -1,0 +1,60 @@
+[[section-system-scope-and-context]]
+== Kontextabgrenzung
+
+=== State Model
+
+Die Abbildung "<<id_abb_state_model,State Model>>"" zeigt die Statuus der Benutzeroberfläche.
+
+:!figure-caption:
+
+[[id_abb_state_model]]
+[plantuml, generated/state_model, svg]
+.State_Model
+....
+scale 800 width
+title State Model
+
+[*] -> Main
+Main: Main Menu
+Main -d-> AutoWinding : c
+AutoWinding --> Main : finished
+
+AutoWinding -l-> AWCancel : c
+AWCancel --> AWContinue : +
+AWCancel --> AWCancel : -
+AWCancel ---> Main : c
+
+AWContinue -> AutoWinding : c
+AWContinue ---> AWCancel : -
+AWContinue ---> AWContinue : +
+
+
+
+AutoWinding -right-> AutoWinding : +-
+
+Main --> Mass : +
+
+Mass -> SelMass : c
+SelMass -> SelMass : +-
+SelMass -> Mass : c
+
+Mass --> Main : -
+
+Mass --> Material : +
+Material --> Mass : -
+
+Material -> SelMaterial : c
+SelMaterial -> Material : c
+SelMaterial -> SelMaterial : +-
+
+
+Material --> Manual1Stop : +
+Manual1Stop --> Material : -
+Manual1Stop --> Manual2Stop : +
+Manual2Stop --> Manual1Stop : -
+Manual2Stop ---> Main : +
+Main --> Manual2Stop : -
+
+
+....
+

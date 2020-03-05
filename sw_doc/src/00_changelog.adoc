@@ -1,0 +1,29 @@
+[[section-changelog]]
+
+:numbered!:
+
+==	Dokumentenhistorie/Revisionsinfo
+
+// umgekehrt chronologisch
+
+
+[cols="1,1,1,5", options="header"] 
+|===
+|Version
+|Datum
+|Bearbeiter
+|
+
+
+|0.0.1
+|18.01.2010
+|ALZ
+|Initiale Version, Template angelegt
+
+
+
+|===
+
+
+
+:numbered:

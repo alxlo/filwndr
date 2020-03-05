@@ -1,0 +1,6 @@
+[[section-references]]
+[bibliography]
+== Quellenangaben und Referenzen
+
+[[Foo2000]][Foo2000] Reference to Foo2000
+
