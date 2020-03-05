@@ -17,6 +17,3 @@
 # Workspace files are user-specific
 *.sublime-workspace
 
-
-# hide true credentials and config files from public git
-credentials.h
