@@ -5,6 +5,8 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <ESP32Servo.h> 
+#include <A4988.h>
 
 #ifdef U8X8_HAVE_HW_SPI
 #include <SPI.h>
@@ -13,18 +15,15 @@
 #include <Wire.h>
 #endif
 
-/*
-  U8g2lib Example Overview:
-    Frame Buffer Examples: clearBuffer/sendBuffer. Fast, but may not work with all Arduino boards because of RAM consumption
-    Page Buffer Examples: firstPage/nextPage. Less RAM usage, should work with all Arduino boards.
-    U8x8 Text Only Example: No RAM usage, direct communication with display controller. No graphics, 8x8 Text only.
-    
-  This is a page buffer example.    
-*/
+// ### DISPLAY ###
+// vanilla SSD1306 board without Reset pin on I2C SCL (GPIO22) and SDA (GPIO21)
+U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);  
 
-
-U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
-
+// ### ROTARY ENCODER for user input ###
+// 20 Position 360 Degree Rotary Encoder EC11 w Push Button 
+#define ENCODER_PIN_A GPIO_NUM_33
+#define ENCODER_PIN_B GPIO_NUM_32
+Rotary r = Rotary(ENCODER_PIN_A, ENCODER_PIN_B);  //rotary encoder on pins GPIO32 and GPIO33
 
 #define SUN	0
 #define SUN_CLOUD  1
@@ -32,10 +31,13 @@ U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 #define RAIN 3
 #define THUNDER 4
 
-Rotary r = Rotary(GPIO_NUM_32, GPIO_NUM_33);  //rotary encoder on pins GPIO32 and GPIO33
-#define GPIO_BIT_MASK  ((1ULL<<GPIO_NUM_32) | (1ULL<<GPIO_NUM_33)) 
+
 
 int position = 0;
+
+// ### STEPPER MOTOR ###
+// 40mm Nema17 Stepper Motor 42BYGH 1.7A (17HS4401) 
+// Stepper Driver A4988
 
 // Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
 #define MOTOR_STEPS 200
@@ -46,14 +48,19 @@ int position = 0;
 #define DIR GPIO_NUM_16
 #define STEP GPIO_NUM_17
 #define SLEEP GPIO_NUM_18
-
-#include "A4988.h"
 #define MS1 GPIO_NUM_25
 #define MS2 GPIO_NUM_26
 #define MS3 GPIO_NUM_27
 
 A4988 stepper(MOTOR_STEPS, DIR, STEP, SLEEP, MS1, MS2, MS3);
 
+// ### SERVO ###
+// Hobbyking HK15148 Analog Servo 2.5kg / 0.14sec / 17
+
+#define SERVO_PIN 13
+Servo myservo;  // create servo object to control a servo
+
+// ### OTA + WiFi ###
 
 #ifndef WIFI_SSID
 #define WIFI_SSID "You should not put your SSID here"
@@ -64,6 +71,7 @@ A4988 stepper(MOTOR_STEPS, DIR, STEP, SLEEP, MS1, MS2, MS3);
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWD;
 
+bool OTA_in_Progress = false;
 
 void drawWeatherSymbol(u8g2_uint_t x, u8g2_uint_t y, uint8_t symbol)
 {
@@ -125,8 +133,10 @@ void IRAM_ATTR rotaryChanged() {
 
 void setup(void) {
   Serial.begin(115200);
-
-  u8g2.begin();  
+  myservo.setPeriodHertz(50);// Standard 50hz servo
+  myservo.attach(SERVO_PIN, 500, 2400); 
+  
+  u8g2.begin();   
   u8g2.enableUTF8Print();
   r.begin(true);
   attachInterrupt(digitalPinToInterrupt(GPIO_NUM_32), rotaryChanged, CHANGE);
@@ -158,6 +168,8 @@ void setup(void) {
   // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
 ArduinoOTA
     .onStart([]() {
+      OTA_in_Progress = true;
+      myservo.detach();
       String type;
       if (ArduinoOTA.getCommand() == U_FLASH)
         type = "sketch";
@@ -207,13 +219,13 @@ void loop(void) {
     // One complete revolution is 360°
     stepper.rotate(360);     // forward revolution
     delay(1000);
-    stepper.rotate(-360);    // reverse revolution
-    delay(1000);
+    //stepper.rotate(-360);    // reverse revolution
+    //delay(1000);
     // One complete revolution is also MOTOR_STEPS steps in full step mode
-    stepper.move(MOTOR_STEPS*3);    // forward revolution
-    delay(1000);
-    stepper.move(-MOTOR_STEPS);   // reverse revolution
-    delay(1000);
+    //stepper.move(MOTOR_STEPS*3);    // forward revolution
+    //delay(1000);
+    //stepper.move(-MOTOR_STEPS);   // reverse revolution
+    //delay(1000);
     /*
      * Microstepping mode: 1, 2, 4, 8, 16 or 32 (where supported by driver)
      * Mode 1 is full speed.
@@ -227,19 +239,27 @@ void loop(void) {
     
     stepper.move(8 * MOTOR_STEPS*3);    // forward revolution
     delay(1000);
-    stepper.move(-8 * MOTOR_STEPS);   // reverse revolution
-    delay(1000);
+    //stepper.move(-8 * MOTOR_STEPS);   // reverse revolution
+    //delay(1000);
     // One complete revolution is still 360° regardless of microstepping mode
     // rotate() is easier to use than move() when no need to land on precise microstep position
-    stepper.rotate(360);
-    delay(1000);
-    stepper.rotate(-360);
+    //stepper.rotate(360);
+    //delay(1000);
+    //stepper.rotate(-360);
 
 
   for(;;){
 
       draw(CLOUD, position);
       ArduinoOTA.handle();
+      if(position<=180 && position>=0) {
+        if (!OTA_in_Progress){
+          myservo.write(position);
+          
+        }
+      }
+      delay(20);
+    
   }
     //Serial.println("foo"); 
     //position++;
@@ -251,5 +271,4 @@ void loop(void) {
 
 
 
-
-
+// https://randomnerdtutorials.com/esp32-pinout-reference-gpios/
