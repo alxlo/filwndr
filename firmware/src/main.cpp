@@ -25,17 +25,17 @@ U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SD
 Rotary r = Rotary(ENCODER_PIN_A, ENCODER_PIN_B);  //rotary encoder on pins GPIO32 and GPIO33
 
 
-int position = 0;
+int rpm = 10; //revolutions per Minute
 
 // ### STEPPER MOTOR ###
 // 40mm Nema17 Stepper Motor 42BYGH 1.7A (17HS4401) 
 // Stepper Driver A4988
 
 // Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
-#define MOTOR_STEPS 200
+#define MOTOR_STEPS 400  // Steps per Revolution, we use Half-Steps, therefore 400
 #define RPM 120
 // Acceleration and deceleration values are always in FULL steps / s^2
-#define MOTOR_ACCEL 200
+#define MOTOR_ACCEL 200  // in steps per second per second
 #define MOTOR_DECEL 100
 #define STEPPER_DIR GPIO_NUM_16
 #define STEPPER_STEP GPIO_NUM_17
@@ -63,21 +63,26 @@ const char* password = WIFI_PASSWD;
 
 bool OTA_in_Progress = false;
 
+// max 600 rpm = 1 r/sec = 400 steps/sec --> 1 step = 2500 uS
+// timer clock divison = 80 --> 1 tick per uS
+// 1 rpm = 400 ticks/min --> 1 tick per 150000 hs
+volatile uint64_t stepCounter = 0;
+volatile uint64_t tPhaseUs = 15000;
+volatile uint8_t stepLevel = LOW;
+hw_timer_t * timer = NULL;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+ 
 
-void drawWeather(int degree)
-{
-  u8g2.setFont(u8g2_font_logisoso16_tf);
-  u8g2.setCursor(16+3, 42);
-  u8g2.print(degree);
-  //u8g2.print("°C");		// requires enableUTF8Print()
-}
 
-
-void draw(int degree)
+void draw(int degree, int steps)
 {
   u8g2.firstPage();
   do {
-    drawWeather(degree);
+    u8g2.setFont(u8g2_font_logisoso16_tf);
+    u8g2.setCursor(16+3, 42);
+    u8g2.print(degree);
+    u8g2.setCursor(16+3, 61);
+    u8g2.print(steps);
   } while ( u8g2.nextPage() );
 }
 
@@ -85,10 +90,25 @@ void IRAM_ATTR rotaryChanged() {
     unsigned char result = r.process();
     if (result) {
       Serial.println(result == DIR_CW ? "Right" : "Left");
-      position+= result == DIR_CW ? -1 : 1;
+      rpm+= result == DIR_CW ? -1 : 1;
+      if (rpm<1) rpm=1;
     }
 }
 
+void IRAM_ATTR onStepUpTimer() {
+  portENTER_CRITICAL_ISR(&timerMux);
+
+  if (stepLevel==LOW) {
+    stepLevel = HIGH;
+    stepCounter++;
+    timerAlarmWrite(timer, tPhaseUs, true);  
+  } else {
+    stepLevel = LOW;
+    timerAlarmWrite(timer, 10, true);  
+  }
+  portEXIT_CRITICAL_ISR(&timerMux);
+  digitalWrite(STEPPER_STEP, stepLevel);  
+}
 
 
 
@@ -109,7 +129,7 @@ void setup(void) {
   digitalWrite(STEPPER_MS3, LOW);
   Serial.begin(115200);
   Serial.println("Booting");
- 
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -134,6 +154,7 @@ void setup(void) {
       .onStart([]() {
         OTA_in_Progress = true;
         myservo.detach();
+        timerDetachInterrupt(timer);
         String type;
         if (ArduinoOTA.getCommand() == U_FLASH)
           type = "sketch";
@@ -171,21 +192,31 @@ void setup(void) {
   r.begin(true);
   attachInterrupt(digitalPinToInterrupt(GPIO_NUM_32), rotaryChanged, CHANGE);
   attachInterrupt(digitalPinToInterrupt(GPIO_NUM_33), rotaryChanged, CHANGE);
-  
+  tPhaseUs= 60000000/(400*rpm)-10;
+  timer = timerBegin(1, 80, true);
+  timerAttachInterrupt(timer, &onStepUpTimer, true);
+  timerAlarmWrite(timer, 100, true);  ////
+  digitalWrite(STEPPER_SLEEP, HIGH); ////
+  timerAlarmEnable(timer);
 
+ 
 }
 
 void loop(void) {
-  digitalWrite(STEPPER_SLEEP, HIGH);
+
+  
+  
   delay(1000);
+  long steps = 0;
   for(;;){
-    draw(position);
+    draw(rpm, steps);
     //myservo.write(position);
     ArduinoOTA.handle();
-    delay(200);
-    digitalWrite(STEPPER_STEP, HIGH);
-    delay(200);
-    digitalWrite(STEPPER_STEP, LOW);   
+    delay(50);
+    portENTER_CRITICAL(&timerMux);
+    tPhaseUs= 60000000/(400*rpm)-100;
+    steps = stepCounter;    
+    portEXIT_CRITICAL(&timerMux);
     
   }
     //Serial.println("foo"); 
@@ -207,3 +238,7 @@ void loop(void) {
 
 // Maybe https://github.com/Stan-Reifel/FlexySteppe = FlexyStepper@1.0.0
 // is a better solution?
+
+
+
+ 
